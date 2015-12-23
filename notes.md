@@ -1,0 +1,129 @@
+2015-12-22
+
+- I tried out my idea of how to capture and *block* all file io.
+  - I mount a passthrough fuse filesystem from / to $dir
+  - Then I `sudo chroot $dir /bin/bash`
+  - From here I can drop perms, chdir, and run the intended command.
+- chroot requires root. I don't think even setuid works. So I would need
+  to have a daemon that listens through IPC for commands (argv) to run.
+  It would maintain the chroot.
+  - I wonder if I want one chroot, or if its just easy enough to start a new
+    chroot per command.
+- Noticed that the passtrhough technique is quite slow. I wonder wether it is:
+  - fuse that is slow
+  - my use of python that is slow
+  - my use of python with logging, and no threads
+    - Next thing to do is to try turning this off.
+    - I turned it off and its much faster now.
+- It is not the chroo that is slow. When I use "bind mounting" it is fast:
+  - `sudo mount -o bind / mnt`.
+
+
+So with this setup, I could now start logging file events:
+- File with `filename` on `machine` at time `timestamp` with hash `sha` was
+  acted on. Actions include "open for reading" and "closed after writing".
+- With just the passthrough fs, I do not know which process did the reading
+  or writing. I will need perf events for that.
+
+
+- ftrace might be closer to what I want. It's a bit confusing where perf_events
+  ends and ftrace begins.
+  - doc: https://www.kernel.org/doc/Documentation/trace/ftrace.txt
+
+  - all settings are in: /sys/kernel/debug/tracing
+
+  - these files look like could be used to trace just certain processes
+
+    set_ftrace_pid:
+	Have the function tracer only trace a single thread.
+    set_event_pid:
+        Have the events only trace a task with a PID listed in this file.
+	Note, sched_switch and sched_wake_up will also trace events
+	listed in this file.
+
+  - There is some discussion of callbacks. If I could run my own code
+    for each event, I may not need the fuse+chroot trick.
+
+  - kprobe_events: is the "dynamic" tracer. I think what makes this dynamic
+    is that can specify your own breakpoints (within a kernel function and
+    decide how you want to capture arguments).
+
+  - `instances` directory can be used to create a separate tracing session.
+    `mkdir foo` within the instances directory will create a dir `foo` that
+    is auto populated with the tracing interface.
+
+- uprobe_events:
+  - Is userspace tracing relavent? Could I capture syscalls from the userland
+    side?
+
+- systemtap:
+  - https://sourceware.org/systemtap/examples/process/strace.stp
+  - https://sourceware.org/systemtap/examples/process/strace.txt
+  - can reimplement strace using systemtap script.
+  - is it faster than strace?
+    - http://elinux.org/System_Tap
+    - maybe 5%
+    - https://sysdig.com/sysdig-vs-dtrace-vs-strace-a-technical-discussion/
+  - is it easy to use without recompiling the kernel?
+    - it is being a pain to install, because you need to fetch kernel symbols.
+  - looks like I can use the strace.stp script without kernel debug symbols.
+
+- dtrace
+  https://github.com/dtrace4linux/linux
+
+=============================================================================
+2015-12-21
+
+- Current idea for the architecture:
+  - Recording:
+    - prefix command like `totes myprog arg1 arg2`
+    - sends/stores logs to common location.
+  - Database
+    - Add logs to a db: `totes db add log-file.json`
+    - Adding should dedup log lines.
+    - Logs from different machines can all be combined. If any sha's are shared
+      we can connect the graph together.
+  - Command line inspector
+    - `totes show file` could show all commands that made the file in
+      reverse chronological order.
+  - Web client for db
+    - Visualize process-file graph.
+
+- Recording on mac:
+  - dtrace/dtruss can be used.
+- Recording on Linux:
+  - perf_events
+
+- perf_events:
+  - Example of recording file opens:
+    - http://www.brendangregg.com/blog/2014-07-25/opensnoop-for-linux.html
+    - https://github.com/brendangregg/perf-tools/blob/master/opensnoop
+  - Use at netflix:
+    - http://www.slideshare.net/brendangregg/scale2015-linux-perfprofiling
+
+```sh
+perf probe --add 'do_sys_open filename:string'
+perf record --no-buffering -e probe:do_sys_open -o - -a | PAGER=cat perf script -i -
+perf probe --del do_sys_open
+```
+
+This does work.
+```sh
+sudo echo 0 > /proc/sys/kernel/kptr_restrict
+sudo perf record -e fs:do_sys_open -a
+sudo perf script
+```
+
+Is it possible to do something just in userland though? What is uprobe?
+
+
+```
+sudo perf probe 'do_sys_open filename:string'
+```
+
+It seems I don't have everything enabled:
+```
+Failed to find path of kernel module.
+Failed to open debuginfo file.
+  Error: Failed to add events. (-2)
+```
