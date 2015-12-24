@@ -137,8 +137,12 @@ class STraceTracer(object):
 
     def _parse_strace(self, stream):
         for line in stream:
-            pid, timestamp, rest = line.split(' ', 2)
-            func, rest = rest.split('(', 1)
+            pid, timestamp, rest = line.split(None, 2)
+            try:
+                func, rest = rest.split('(', 1)
+            except ValueError:
+                break
+
             pid = int(pid)
             args = self._parse_args(rest)
 
