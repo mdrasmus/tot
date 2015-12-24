@@ -1,7 +1,11 @@
 #!/usr/bin/env python
 
+import argparse
+import json
+import pwd
 import os
 import re
+import socket
 from subprocess import call
 import sys
 import tempfile
@@ -9,14 +13,16 @@ import thread
 
 
 class Tracer(object):
-    def __init__(self):
+    def __init__(self, host=None):
         self.retcode = None
+        self.host = host or socket.gethostname()
+        self.user = pwd.getpwuid(os.getuid()).pw_name
 
     def trace(self, cmd):
         return iter([])
 
 
-class STraceTracer(object):
+class STraceTracer(Tracer):
 
     def trace(self, cmd):
         self._make_fifo()
@@ -147,17 +153,27 @@ class STraceTracer(object):
             args = self._parse_args(rest)
 
             yield {
+                'host': self.host,
+                'user': self.user,
                 'pid': pid,
                 'timestamp': timestamp,
                 'func': func,
                 'args': args,
-                #'rest': rest,
             }
 
 
-cmd = sys.argv[1:]
+# Command parser.
+parser = argparse.ArgumentParser()
+parser.add_argument('--log', default='tot.log',
+                    help='log file')
+
+# Parse command line arguments.
+args, rest = parser.parse_known_args()
+
+# Run tracer and log events.
+cmd = rest
 tracer = STraceTracer()
-for line in tracer.trace(cmd):
-    print line
-
-
+with open(args.log, 'a') as out:
+    for row in tracer.trace(cmd):
+        out.write(json.dumps(row, sort_keys=True))
+        out.write('\n')
