@@ -5,6 +5,7 @@
 #
 
 import errno
+import hashlib
 import logging
 import pwd
 import os
@@ -101,12 +102,24 @@ class Passthrough(Operations):
     # ============
 
     def _get_file_hash(self, path):
-        return 'XXX'
+        blocklen = 1024 * 4
+
+        with open(path) as infile:
+            m = hashlib.sha1()
+            while True:
+                block = infile.read(blocklen)
+                if len(block) == 0:
+                    break
+                m.update(block)
+            file_hash = m.digest().encode("hex")
+        return file_hash
 
     def open(self, path, flags):
 
         full_path = self._full_path(path)
         file_hash = self._get_file_hash(full_path)
+
+        fd = os.open(full_path, flags)
 
         event = {
             'type': 'fs',
@@ -116,11 +129,12 @@ class Passthrough(Operations):
             'func': 'open',
             'path': path,
             'hash': file_hash,
+            'fd': fd,
             'flags': flags,
         }
         self.logger(event)
 
-        return os.open(full_path, flags)
+        return fd
 
     def create(self, path, mode, fi=None):
         full_path = self._full_path(path)
@@ -143,7 +157,23 @@ class Passthrough(Operations):
         return os.fsync(fh)
 
     def release(self, path, fh):
-        return os.close(fh)
+        retcode = os.close(fh)
+
+        full_path = self._full_path(path)
+        file_hash = self._get_file_hash(full_path)
+        event = {
+            'type': 'fs',
+            'host': self.host,
+            'user': self.user,
+            'timestamp': str(time.time()),
+            'func': 'close',
+            'path': path,
+            'hash': file_hash,
+            'fd': fh,
+        }
+        self.logger(event)
+
+        return retcode
 
     def fsync(self, path, fdatasync, fh):
         return self.flush(path, fh)
