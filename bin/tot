@@ -5,11 +5,15 @@ import json
 import pwd
 import os
 import re
+import signal
 import socket
 from subprocess import call
 import sys
 import tempfile
 import thread
+import time
+
+from tot import fs
 
 
 class Tracer(object):
@@ -153,6 +157,7 @@ class STraceTracer(Tracer):
             args = self._parse_args(rest)
 
             yield {
+                'type': 'trace',
                 'host': self.host,
                 'user': self.user,
                 'pid': pid,
@@ -162,18 +167,49 @@ class STraceTracer(Tracer):
             }
 
 
+class Logger(object):
+
+    def __init__(self, stream):
+        self.stream = stream
+
+    def log(self, row):
+        self.stream.write(json.dumps(row, sort_keys=True))
+        self.stream.write('\n')
+        self.stream.flush()
+
+
 # Command parser.
 parser = argparse.ArgumentParser()
 parser.add_argument('--log', default='tot.log',
                     help='log file')
+parser.add_argument('--log-fs', default='tot-fs.log',
+                    help='log fs file')
+
 
 # Parse command line arguments.
 args, rest = parser.parse_known_args()
 
+# Setup logger.
+logger = Logger(open(args.log, 'a'))
+
+# Setup fs shim.
+child_pid = os.fork()
+if child_pid == 0:
+    logger_fs = Logger(open(args.log_fs, 'a'))
+    tot_fs = fs.TotFS(logger_fs.log)
+    tot_fs.mount('mnt')
+    # Runs forever.
+
+# Wait for mount to setup.
+while not os.listdir('mnt'):
+    time.sleep(.01)
+
 # Run tracer and log events.
 cmd = rest
 tracer = STraceTracer()
-with open(args.log, 'a') as out:
-    for row in tracer.trace(cmd):
-        out.write(json.dumps(row, sort_keys=True))
-        out.write('\n')
+for row in tracer.trace(cmd):
+    logger.log(row)
+
+# Kill mount process.
+os.kill(child_pid, signal.SIGKILL)
+os.system('fusermount -uz mnt')
