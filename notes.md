@@ -1,3 +1,75 @@
+2015-12-24
+
+- can't fuse libarary `libfuse.so.2`
+  - it's because writing to /dev/null is not working. Somehow I am not
+    emulating /dev/null correctly.
+
+- normal files have st_mode=33204
+- /dev/null is reporting stmode=8630
+
+
+            5432109876543210
+  normal    1000000110110100 33204
+  /dev/null 0010000110110110 8630
+                   rwxrwxrwx
+            ^ ^
+            | \------ 2^13 = 8192 = S_IFCHR
+            \-------- S_IFREG regular file
+
+- If I let let the mode be a character file S_IFCHR the caller thinks
+  it doesn't have permission to open the file. It doesn't even try to open the
+  file.
+  - Does fuse not work well with character files?
+  - For now I can cheat and transform character files into regular.
+    - I might have to use directio though in order to be able to lie about
+      file st_size.
+
+- binary files are not being read correctly through fuse.
+
+  `diff chroot/mnt/usr/bin/python /usr/bin/python`
+
+  symlinks are being represent correctly. the file size looks like the symlink
+  size.
+  symlinks are being converted to regular file.
+
+Ok I was able to execute this, use the experimental/fuse/fs.py for mounting.
+``
+sudo chroot /vagrant/chroot/mnt /vagrant/bin/tot --chroot 123 --log /tmp/a --log-fs /tmp/b ls
+```
+
+- ok, I got it working!
+  - need to generalize the hard coded paths.
+  - my trace logging is also caught up in the fs chroot.
+    - could create an escape hatch.
+      `/.tot/$path` could allow unrecorded access to `$path`. That way
+      `tot` can interact with loggin and config without it being recorded.
+    - openning the log file should be in the escape hatch.
+
+  - the tot binary iteself is caught up in the logging, along with all its
+    libs.
+    - its not terrible, but it adds noise.
+    - how do I use the escape hatch for this?
+    - maybe I can move the chroot within the strace or just out side the
+      strace command.
+      - `strace $strace_args $cmd`
+      - `chroot /chroot strace $strace_args -o $fifo $cmd`
+      - `strace $strace_args -o $fifo tot-chroot $cmd`
+        - This would trace any syscalls that tot-chroot does. I could filter
+          such logs out myself, if I know how to identify. Basically, by
+          pid if I know its pid.
+        - There would be fs logs too. Basically reading tot-chroot from disk.
+          Perhaps that is regular enough that I can filter out.
+
+  - I still need to drop perms after chroot.
+
+- current design doesn't allow parallel execution of `tot`, because mounting
+  would collide.
+  - One solution is to just not mount if already mounted.
+
+- Hopefully, by implementing dtrace on mac this will work cross-platform.
+  Does anything about my chroot-trick not work on mac?
+
+=============================================================================
 2015-12-22
 
 - I tried out my idea of how to capture and *block* all file io.
@@ -15,7 +87,7 @@
   - my use of python with logging, and no threads
     - Next thing to do is to try turning this off.
     - I turned it off and its much faster now.
-- It is not the chroo that is slow. When I use "bind mounting" it is fast:
+- It is not the chroot that is slow. When I use "bind mounting" it is fast:
   - `sudo mount -o bind / mnt`.
 
 

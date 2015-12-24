@@ -9,6 +9,7 @@ import hashlib
 import logging
 import pwd
 import os
+import stat
 import socket
 import sys
 import time
@@ -51,8 +52,15 @@ class Passthrough(Operations):
     def getattr(self, path, fh=None):
         full_path = self._full_path(path)
         st = os.lstat(full_path)
-        return dict((key, getattr(st, key)) for key in ('st_atime', 'st_ctime',
-                     'st_gid', 'st_mode', 'st_mtime', 'st_nlink', 'st_size', 'st_uid'))
+        attr = dict((key, getattr(st, key)) for key in (
+            'st_atime', 'st_ctime',
+            'st_gid', 'st_mode', 'st_mtime', 'st_nlink', 'st_size', 'st_uid'))
+
+        #if attr['st_mode'] & stat.S_IFCHR:
+        if path == '/dev/null':
+            attr['st_mode'] = attr['st_mode'] & ~stat.S_IFCHR | stat.S_IFREG
+
+        return attr
 
     def readdir(self, path, fh):
         full_path = self._full_path(path)
@@ -112,12 +120,17 @@ class Passthrough(Operations):
                     break
                 m.update(block)
             file_hash = m.digest().encode("hex")
-        return file_hash
+            return file_hash
 
     def open(self, path, flags):
 
         full_path = self._full_path(path)
-        file_hash = self._get_file_hash(full_path)
+
+        if flags & os.O_RDONLY:
+            file_hash = self._get_file_hash(full_path)
+        else:
+            # We do not hash for writing.
+            file_hash = None
 
         fd = os.open(full_path, flags)
 
@@ -149,6 +162,8 @@ class Passthrough(Operations):
         return os.write(fh, buf)
 
     def truncate(self, path, length, fh=None):
+        if path == '/dev/null':
+            return
         full_path = self._full_path(path)
         with open(full_path, 'r+') as f:
             f.truncate(length)

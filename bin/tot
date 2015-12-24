@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 
+import sys
+
+# HACK
+sys.path.extend(['/vagrant', '/vagrant/env/lib/python2.7/site-packages'])
+
 import argparse
 import json
 import pwd
@@ -8,7 +13,6 @@ import re
 import signal
 import socket
 from subprocess import call
-import sys
 import tempfile
 import thread
 import time
@@ -184,25 +188,44 @@ parser.add_argument('--log', default='tot.log',
                     help='log file')
 parser.add_argument('--log-fs', default='tot-fs.log',
                     help='log fs file')
+parser.add_argument('--chroot', type=int)
 
 
 # Parse command line arguments.
 args, rest = parser.parse_known_args()
 
+
+if not args.chroot:
+    # Need to setup chroot fs.
+
+    # Setup fs shim.
+    child_pid = os.fork()
+    if child_pid == 0:
+        logger_fs = Logger(open(args.log_fs, 'a'))
+        tot_fs = fs.TotFS(logger_fs.log)
+        tot_fs.mount('/vagrant/chroot/mnt')
+        # Runs forever.
+
+    assert child_pid != 0
+
+    # Wait for mount to setup.
+    while not os.listdir('/vagrant/chroot/mnt'):
+        time.sleep(.01)
+
+    # Rexecute within chroot.
+    retcode = call(['sudo', 'tot-chroot', str(child_pid)] + sys.argv[1:])
+
+    # Kill mount process.
+    os.kill(child_pid, signal.SIGKILL)
+    os.system('fusermount -uz /vagrant/chroot/mnt')
+
+    sys.exit(retcode)
+
+# chroot fs is already in place, start tracing.
+#child_pid = args.chroot
+
 # Setup logger.
 logger = Logger(open(args.log, 'a'))
-
-# Setup fs shim.
-child_pid = os.fork()
-if child_pid == 0:
-    logger_fs = Logger(open(args.log_fs, 'a'))
-    tot_fs = fs.TotFS(logger_fs.log)
-    tot_fs.mount('mnt')
-    # Runs forever.
-
-# Wait for mount to setup.
-while not os.listdir('mnt'):
-    time.sleep(.01)
 
 # Run tracer and log events.
 cmd = rest
@@ -210,6 +233,4 @@ tracer = STraceTracer()
 for row in tracer.trace(cmd):
     logger.log(row)
 
-# Kill mount process.
-os.kill(child_pid, signal.SIGKILL)
-os.system('fusermount -uz mnt')
+sys.exit(tracer.retcode)
