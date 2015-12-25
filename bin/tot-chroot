@@ -1,0 +1,102 @@
+#!/usr/bin/env python
+
+import os
+import pwd
+from subprocess import call
+from subprocess import PIPE
+from subprocess import Popen
+import sys
+
+# HACK: rely on tot being installed instead.
+sys.path.append('/vagrant')
+
+from tot.config import get_mount_dir
+from tot.config import get_user
+from tot.config import get_user_mount_dir
+from tot.config import get_user_passwd
+from tot.config import setup_config
+
+
+
+if os.getuid() != 0:
+    # Running as normal user.
+
+    if len(sys.argv) >= 3 and sys.argv[1] == '--cd':
+        # Run as user within new directory.
+        path = sys.argv[2]
+        os.chdir(path)
+        cmd = sys.argv[3:]
+        sys.exit(call(cmd))
+
+    # Escalate privilege.
+    # Running as user. Login as root.
+    user = get_user()
+    passwd = get_user_passwd()
+
+    # Run tot-chroot as root with user's passwd.
+    args = sys.argv[1:]
+    proc = Popen(['sudo', 'tot-chroot', user] + args,
+                 stdin=PIPE)
+
+    # TODO: think of another way to give the password so that stdin can be
+    # used by the program.
+    proc.stdin.write(passwd + '\n')
+    sys.exit(proc.wait())
+
+else:
+    # Running as root, validate password.
+    user = sys.argv[1]
+
+    # Check passwd.
+    given_passwd = sys.stdin.readline().strip()
+    user_passwd = get_user_passwd(user=user)
+
+    if user_passwd != given_passwd:
+        print >> sys.stderr, 'Permission denied.'
+        sys.exit(1)
+
+
+def setup_mount_dir(user):
+    # Create base directory.
+    base_dir = get_mount_dir()
+    if not os.path.exists(base_dir):
+        os.makedirs(base_dir)
+    os.chmod(base_dir, 0755)
+
+    # Create user directory.
+    mount_dir = get_user_mount_dir(user)
+    if not os.path.exists(mount_dir):
+        os.makedirs(mount_dir)
+    os.chmod(mount_dir, 0755)
+
+    # Give ownership to user.
+    entry = pwd.getpwnam(user)
+    os.chown(mount_dir, entry.pw_uid, entry.pw_gid)
+
+
+def get_chroot_cmd(user, mount_dir, cmd):
+    if sys.platform == 'Darwin':
+        raise NotImplementedError()
+
+    else:
+        # Assume linux platform.
+        entry = pwd.getpwnam(user)
+        uid, gid = entry.pw_uid, entry.pw_gid
+        return ['chroot', '--userspec={}:{}'.format(uid, gid), mount_dir] + cmd
+
+
+args = sys.argv[2:]
+mount_dir = get_user_mount_dir(user)
+
+if args[:1] == ['--setup']:
+    # Setup mount dir.
+    setup_mount_dir(user)
+    sys.exit(0)
+
+# Ensure mount point is present.
+if not os.path.exists(mount_dir):
+    print >> sys.stderr, 'Mount path is not present.'
+
+cmd = ['tot-chroot', '--cd', os.getcwd()] + args
+chroot_cmd = get_chroot_cmd(user, mount_dir, cmd)
+sys.exit(call(chroot_cmd))

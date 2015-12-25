@@ -1,6 +1,8 @@
 import os
 import pwd
-import random
+from subprocess import call
+import sys
+import uuid
 
 
 def get_user():
@@ -37,7 +39,7 @@ def setup_config(user=None):
 
     if not os.path.exists(passwd_file):
         # Create password.
-        passwd = str(random.randint(0, 1e9))
+        passwd = str(uuid.uuid4())
 
         # Save password.
         open(passwd_file, 'w').close()
@@ -45,9 +47,30 @@ def setup_config(user=None):
         with open(passwd_file, 'w') as out:
             out.write(passwd)
 
+    # Setup mount directory.
+    mount_dir = get_user_mount_dir(user=user)
+    if not os.path.exists(mount_dir):
+        if call(['tot-chroot', '--setup']) != 0:
+            print >>sys.stderr, (
+                "Could not setup user's mount directory: {}.".format(
+                mount_dir))
+
 
 def get_user_passwd(user=None):
     """
     Try to read a user's password. Require's reading permission.
     """
     return open(get_passwd_file(user=user)).read()
+
+
+def get_run_dir():
+    return '/var/run/tot/'
+
+
+def get_mount_dir():
+    return os.path.join(get_run_dir(), 'mnt')
+
+
+def get_user_mount_dir(user=None):
+    user = user or get_user()
+    return os.path.join(get_mount_dir(), user)

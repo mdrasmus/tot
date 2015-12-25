@@ -1,3 +1,34 @@
+2015-12-25
+
+- I probably need a root (or separate user) daemon like `tot-server`
+  - `tot-server start`
+    - start mount at `/var/run/tot/mnt/{session}`
+    - or start mount at `/var/run/tot/mnt/{user}`. A sudo-ed setup script
+      could make a dir for each user with their own perms.
+      - `tot-mount` could then run as the user. This would lead multiple
+        mounts, but that's fine. Logs could then be in the user home dir,
+        which I perfer anyways.
+    - start listening on a socket for IPC?
+  - use IPC to start new user sessions?
+    - if user knows the session id, that proves they are that user.
+  - might need to be root if we ever need to log root actions.
+    - `tot` user would not have access to user's files.
+- keep `tot-chroot` simple (a separate) since it is sudo-able.
+  - How do I know which user to drop perms into? It needs to be provable.
+    - User could make a file: `~/.config/tot/passwd` that only the user
+      and root have access to.
+    - can't put passwd on the command line.
+    - can put passwd on stdin.
+    - `cat ~/.config/tot/passwd | sudo tot-chroot $user $cmd`
+      - Read $user's passwd file to see if it matches what was given on
+        command line.
+        - make sure passwd in not caught up in logging.
+      - run `sudo -u $user strace $strace_args $cmd` to drop perms.
+        - for other tracers I could require that they all provide a
+          command-line program that provides strace-like behavior.
+          
+
+=============================================================================
 2015-12-24
 
 - can't fuse libarary `libfuse.so.2`

@@ -19,6 +19,7 @@ import time
 
 from tot import fs
 from tot.config import get_user
+from tot.config import get_user_mount_dir
 from tot.config import setup_config
 
 
@@ -197,6 +198,9 @@ parser.add_argument('--chroot', type=int)
 # Parse command line arguments.
 args, rest = parser.parse_known_args()
 
+# Setup user config.
+setup_config()
+mount_dir = get_user_mount_dir()
 
 if not args.chroot:
     # Need to setup chroot fs.
@@ -206,27 +210,27 @@ if not args.chroot:
     if child_pid == 0:
         logger_fs = Logger(open(args.log_fs, 'a'))
         tot_fs = fs.TotFS(logger_fs.log)
-        tot_fs.mount('/vagrant/chroot/mnt')
+        tot_fs.mount(mount_dir)
         # Runs forever.
 
     assert child_pid != 0
 
     # Wait for mount to setup.
-    while not os.listdir('/vagrant/chroot/mnt'):
+    while not os.listdir(mount_dir):
         time.sleep(.01)
 
     # Rexecute within chroot.
-    retcode = call(['sudo', 'tot-chroot', str(child_pid)] + sys.argv[1:])
+    tot = os.path.abspath(__file__)
+    retcode = call(
+        ['tot-chroot', tot, '--chroot', str(child_pid)] + sys.argv[1:])
 
     # Kill mount process.
     os.kill(child_pid, signal.SIGKILL)
-    os.system('fusermount -uz /vagrant/chroot/mnt')
+    call(['fusermount', '-uz', mount_dir])
 
     sys.exit(retcode)
 
 # chroot fs is already in place, start tracing.
-#child_pid = args.chroot
-
 # Setup logger.
 logger = Logger(open(args.log, 'a'))
 
