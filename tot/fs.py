@@ -11,6 +11,7 @@ import pwd
 import os
 import stat
 import socket
+from subprocess import call
 import sys
 import time
 
@@ -205,3 +206,17 @@ class TotFS(object):
     def mount(self, mountpoint):
         FUSE(self.fs, mountpoint,
              nothreads=True, foreground=True, allow_other=True)
+
+
+def unmount(mount_dir):
+    """
+    Unmount a repo from a directory.
+    """
+    # Hide which stdout.
+    FNULL = open(os.devnull, 'w')
+    if call(['which', 'fusermount'], stdout=FNULL, close_fds=True) == 0:
+        cmd = ['fusermount', '-uz', mount_dir]
+    else:
+        # This command is typically used on Mac OS X.
+        cmd = ['umount', mount_dir]
+    return call(cmd)

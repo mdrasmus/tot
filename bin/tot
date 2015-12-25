@@ -226,7 +226,7 @@ if not args.chroot:
 
     # Kill mount process.
     os.kill(child_pid, signal.SIGKILL)
-    call(['fusermount', '-uz', mount_dir])
+    fs.unmount(mount_dir)
 
     sys.exit(retcode)
 
