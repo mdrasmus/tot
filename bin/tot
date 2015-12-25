@@ -7,7 +7,6 @@ sys.path.extend(['/vagrant', '/vagrant/env/lib/python2.7/site-packages'])
 
 import argparse
 import json
-import pwd
 import os
 import random
 import re
@@ -19,10 +18,8 @@ import thread
 import time
 
 from tot import fs
-
-
-def get_user():
-    return pwd.getpwuid(os.getuid()).pw_name
+from tot.config import get_user
+from tot.config import setup_config
 
 
 class Tracer(object):
@@ -185,34 +182,6 @@ class Logger(object):
         self.stream.write(json.dumps(row, sort_keys=True))
         self.stream.write('\n')
         self.stream.flush()
-
-
-def get_config_dir(user=None):
-    user = user or get_user()
-    home_dir = os.environ['HOME']
-    return os.path.join(home_dir, '.config', 'tot')
-
-
-def setup_config(user=None):
-    """
-    Setup a user's config.
-    """
-    config_dir = get_config_dir(user=user)
-    if not os.path.exists(config_dir):
-        os.makedirs(config_dir)
-
-    # Setup password.
-    passwd_file = os.path.join(config_dir, 'passwd')
-
-    if not os.path.exists(passwd_file):
-        # Create password.
-        passwd = str(random.randint(0, 1e9))
-
-        # Save password.
-        open(passwd_file, 'w').close()
-        os.chmod(passwd_file, 0600)
-        with open(passwd_file, 'w') as out:
-            out.write(passwd)
 
 
 # Command parser.
