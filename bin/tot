@@ -28,49 +28,56 @@ parser.add_argument('--log-fs', default='tot-fs.log',
 parser.add_argument('--chroot', type=int)
 
 
-# Parse command line arguments.
-args, rest = parser.parse_known_args()
+def main(args, rest):
+    # Setup user config.
+    setup_config()
+    mount_dir = get_user_mount_dir()
 
-# Setup user config.
-setup_config()
-mount_dir = get_user_mount_dir()
+    if not args.chroot:
+        # Need to setup chroot fs.
 
-if not args.chroot:
-    # Need to setup chroot fs.
+        # Setup fs shim.
+        child_pid = os.fork()
+        if child_pid == 0:
+            logger_fs = Logger(open(args.log_fs, 'a'))
+            tot_fs = fs.TotFS(logger_fs.log)
+            tot_fs.mount(mount_dir)
+            # Runs forever.
 
-    # Setup fs shim.
-    child_pid = os.fork()
-    if child_pid == 0:
-        logger_fs = Logger(open(args.log_fs, 'a'))
-        tot_fs = fs.TotFS(logger_fs.log)
-        tot_fs.mount(mount_dir)
-        # Runs forever.
+        assert child_pid != 0
 
-    assert child_pid != 0
+        # Wait for mount to setup.
+        while not os.listdir(mount_dir):
+            time.sleep(.01)
 
-    # Wait for mount to setup.
-    while not os.listdir(mount_dir):
-        time.sleep(.01)
+        # Rexecute within chroot.
+        tot = os.path.abspath(__file__)
+        retcode = call(
+            ['tot-chroot', tot, '--chroot', str(child_pid)] + sys.argv[1:])
 
-    # Rexecute within chroot.
-    tot = os.path.abspath(__file__)
-    retcode = call(
-        ['tot-chroot', tot, '--chroot', str(child_pid)] + sys.argv[1:])
+        # TODO: use counter scheme unmount only when all tot processes for a user
+        # are done.
+        # Kill mount process.
+        os.kill(child_pid, signal.SIGKILL)
+        fs.unmount(mount_dir)
 
-    # Kill mount process.
-    os.kill(child_pid, signal.SIGKILL)
-    fs.unmount(mount_dir)
+        return retcode
 
-    sys.exit(retcode)
+    # chroot fs is already in place, start tracing.
+    # Setup logger.
+    logger = Logger(open(args.log, 'a'))
 
-# chroot fs is already in place, start tracing.
-# Setup logger.
-logger = Logger(open(args.log, 'a'))
+    # Run tracer and log events.
+    cmd = rest
+    tracer = STraceTracer()
+    for row in tracer.trace(cmd):
+        logger.log(row)
 
-# Run tracer and log events.
-cmd = rest
-tracer = STraceTracer()
-for row in tracer.trace(cmd):
-    logger.log(row)
+    return tracer.retcode
 
-sys.exit(tracer.retcode)
+
+if __name__ == '__main__':
+    # Parse command line arguments.
+    args, rest = parser.parse_known_args()
+
+    sys.exit(main(args, rest))
