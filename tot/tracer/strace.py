@@ -169,7 +169,37 @@ class STraceTracer(tot.tracer.Tracer):
             'return': result,
         }
 
+    def _preprocess(self, stream):
+        """
+        Preprocess strace stream to remove all concurrent logging lines.
+        """
+        unfinished = ' <unfinished ...>'
+        resumed = '<... [^ ]+ resumed> (.*)$'
+        in_progressed = {}
+
+        for line in stream:
+            pid, timestamp, rest = line.rstrip().split(None, 2)
+
+            # Save any lines that are unfinished.
+            # Line must *end* with the string unfinished.
+            i = rest.rfind(unfinished)
+            if i != -1 and i == len(rest) - len(unfinished):
+                partial_line = rest[:i]
+                in_progressed[pid] = (timestamp, partial_line)
+                continue
+
+            # Resume lines. Line must *start* with resumed string.
+            match = re.search(resumed, line)
+            if match:
+                resumed_line = match.groups()[0]
+                timestamp, partial_line = in_progressed.pop(pid)
+                line = '{}  {} {}{}'.format(
+                    pid, timestamp, partial_line, resumed_line)
+
+            yield line
+
     def _parse_strace(self, stream):
+        stream = self._preprocess(stream)
         for line in stream:
             row = self._parse_strace_line(line)
             if row:

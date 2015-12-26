@@ -1,3 +1,68 @@
+2015-12-26
+
+I need to be able to parse the unfinished and resumed lines.
+
+```
+5596  1451148705.750918 execve("/bin/bash", ["bash", "-c", "echo hello | cat > out; cat out"], [/* 15 vars */]) = 0
+5596  1451148705.752968 open("/etc/ld.so.cache", O_RDONLY|O_CLOEXEC) = 4
+5596  1451148705.753481 close(4)        = 0
+5596  1451148705.753933 open("/lib/x86_64-linux-gnu/libtinfo.so.5", O_RDONLY|O_CLOEXEC) = 4
+5596  1451148705.754950 close(4)        = 0
+5596  1451148705.755266 open("/lib/x86_64-linux-gnu/libdl.so.2", O_RDONLY|O_CLOEXEC) = 4
+5596  1451148705.755934 close(4)        = 0
+5596  1451148705.756235 open("/lib/x86_64-linux-gnu/libc.so.6", O_RDONLY|O_CLOEXEC) = 4
+5596  1451148705.758306 close(4)        = 0
+5596  1451148705.760480 open("/dev/tty", O_RDWR|O_NONBLOCK) = -1 EACCES (Permission denied)
+5596  1451148705.761261 open("/usr/lib/locale/locale-archive", O_RDONLY|O_CLOEXEC) = 4
+5596  1451148705.762168 close(4)        = 0
+5596  1451148705.763791 open("/proc/meminfo", O_RDONLY|O_CLOEXEC) = 4
+5596  1451148705.764537 close(4)        = -1 EINVAL (Invalid argument)
+5596  1451148705.764935 open("/usr/lib/x86_64-linux-gnu/gconv/gconv-modules.cache", O_RDONLY) = 4
+5596  1451148705.766027 close(4)        = 0
+5596  1451148705.767700 clone(child_stack=0, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD, child_tidptr=0x7fc01b217a10) = 5597
+5596  1451148705.767881 close(5)        = 0
+5596  1451148705.767921 close(5)        = -1 EBADF (Bad file descriptor)
+5596  1451148705.767966 clone(child_stack=0, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD, child_tidptr=0x7fc01b217a10) = 5598
+5596  1451148705.768076 close(4)        = 0
+5598  1451148705.768278 close(4)        = 0
+5598  1451148705.769291 open("out", O_WRONLY|O_CREAT|O_TRUNC, 0666 <unfinished ...>
+5597  1451148705.769540 close(4)        = 0
+5597  1451148705.769584 close(5)        = 0
+5597  1451148705.770269 +++ exited with 0 +++
+5598  1451148705.772040 <... open resumed> ) = 4
+```
+
+This command also needs parsing
+
+```
+ls -l /dev/null
+```
+
+traces as:
+```
+lstat("/dev/null", {st_mode=S_IFCHR|0666, st_rdev=makedev(1, 3), ...}) = 0
+```
+
+Return value can also be symbolic.
+```
+lstat("/foo/bar", 0xb004) = -1 ENOENT (No such file or directory)
+```
+
+Long strings have ...
+```
+read(3, "root::0:0:System Administrator:/"..., 1024) = 422
+```
+But I am not longing reads. Maybe I should so I can link the calls together? No I probably
+don't need to log individual reads.
+
+
+- How to parse unfinished/resumed lines.
+  - Each process/thread group (need to learn what threads look like) has only one call
+    active at a time. So when I see a `<... $call resumed>` I know it pairs up with the
+    last `<unfinished ..>` line of the same process.
+  - I could preprocess these lines to repair them, then do normal parsing.
+
+=============================================================================
 2015-12-25
 
 - I probably need a root (or separate user) daemon like `tot-server`
