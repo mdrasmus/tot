@@ -26,7 +26,13 @@
       - run `sudo -u $user strace $strace_args $cmd` to drop perms.
         - for other tracers I could require that they all provide a
           command-line program that provides strace-like behavior.
-          
+
+
+- The `clone()` call indicates how parent and child process are related.
+
+```
+5933  1451078297.634280 clone(child_stack=0, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD, child_tidptr=0x7efd651d6a10) = 5934
+```
 
 =============================================================================
 2015-12-24

@@ -1,9 +1,24 @@
 import os
+import re
 from subprocess import call
 import tempfile
 import thread
 
 import tot.tracer
+
+
+def parse_arg(arg):
+    try:
+        return int(arg)
+    except ValueError:
+        pass
+
+    try:
+        return float(arg)
+    except ValueError:
+        pass
+
+    return arg
 
 
 class STraceTracer(tot.tracer.Tracer):
@@ -38,19 +53,6 @@ class STraceTracer(tot.tracer.Tracer):
             '-o', self._fifo] + cmd)
 
     def _parse_args(self, expr):
-
-        def parse_arg(arg):
-            try:
-                return int(arg)
-            except ValueError:
-                pass
-
-            try:
-                return float(arg)
-            except ValueError:
-                pass
-
-            return arg
 
         def parse_string(i):
             assert expr[i] == '"'
@@ -127,14 +129,33 @@ class STraceTracer(tot.tracer.Tracer):
 
     def _parse_strace(self, stream):
         for line in stream:
-            pid, timestamp, rest = line.split(None, 2)
-            try:
-                func, rest = rest.split('(', 1)
-            except ValueError:
-                break
+            print line,
 
+            pid, timestamp, rest = line.split(None, 2)
             pid = int(pid)
-            args = self._parse_args(rest)
+
+            exit_groups = re.match('\+\+\+ exited with (\d+) \+\+\+', rest)
+            signal_groups = re.match('--- SIGCHLD .* ---', rest)
+
+            if exit_groups:
+                # Process exit event.
+                func = 'exit'
+                args = []
+                result = int(exit_groups.groups()[0])
+            elif signal_groups:
+                # Not logging signals currently.
+                continue
+            else:
+                # Syscall event.
+                func, rest = rest.split('(', 1)
+                args = self._parse_args(rest)
+
+                # Parse return value.
+                i = rest.rfind('=')
+                if i != -1:
+                    result = parse_arg(rest[i + 1:].strip())
+                else:
+                    result = None
 
             yield {
                 'type': 'trace',
@@ -144,4 +165,5 @@ class STraceTracer(tot.tracer.Tracer):
                 'timestamp': timestamp,
                 'func': func,
                 'args': args,
+                'return': result,
             }

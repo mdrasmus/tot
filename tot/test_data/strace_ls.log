@@ -1,0 +1,23 @@
+6395  1451081696.517705 execve("/bin/ls", ["ls"], [/* 22 vars */]) = 0
+6395  1451081696.518346 open("/etc/ld.so.cache", O_RDONLY|O_CLOEXEC) = 3
+6395  1451081696.518668 close(3)        = 0
+6395  1451081696.518962 open("/lib/x86_64-linux-gnu/libselinux.so.1", O_RDONLY|O_CLOEXEC) = 3
+6395  1451081696.519373 close(3)        = 0
+6395  1451081696.519668 open("/lib/x86_64-linux-gnu/libacl.so.1", O_RDONLY|O_CLOEXEC) = 3
+6395  1451081696.520044 close(3)        = 0
+6395  1451081696.520333 open("/lib/x86_64-linux-gnu/libc.so.6", O_RDONLY|O_CLOEXEC) = 3
+6395  1451081696.520790 close(3)        = 0
+6395  1451081696.521019 open("/lib/x86_64-linux-gnu/libpcre.so.3", O_RDONLY|O_CLOEXEC) = 3
+6395  1451081696.521311 close(3)        = 0
+6395  1451081696.521533 open("/lib/x86_64-linux-gnu/libdl.so.2", O_RDONLY|O_CLOEXEC) = 3
+6395  1451081696.521824 close(3)        = 0
+6395  1451081696.522049 open("/lib/x86_64-linux-gnu/libattr.so.1", O_RDONLY|O_CLOEXEC) = 3
+6395  1451081696.522355 close(3)        = 0
+6395  1451081696.523066 open("/proc/filesystems", O_RDONLY) = 3
+6395  1451081696.523504 close(3)        = 0
+6395  1451081696.523773 open("/usr/lib/locale/locale-archive", O_RDONLY|O_CLOEXEC) = 3
+6395  1451081696.524016 close(3)        = 0
+6395  1451081696.525156 close(3)        = 0
+6395  1451081696.528447 close(1)        = 0
+6395  1451081696.528772 close(2)        = 0
+6395  1451081696.529113 +++ exited with 0 +++

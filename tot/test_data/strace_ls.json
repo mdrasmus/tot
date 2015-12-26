@@ -1,0 +1,23 @@
+{"args": ["/bin/ls", ["ls"], []], "func": "execve", "host": "vagrant-ubuntu-trusty-64", "pid": 6395, "return": 0, "timestamp": "1451081696.517705", "type": "trace", "user": "vagrant"}
+{"args": ["/etc/ld.so.cache", "O_RDONLY|O_CLOEXEC"], "func": "open", "host": "vagrant-ubuntu-trusty-64", "pid": 6395, "return": 3, "timestamp": "1451081696.518346", "type": "trace", "user": "vagrant"}
+{"args": [3], "func": "close", "host": "vagrant-ubuntu-trusty-64", "pid": 6395, "return": 0, "timestamp": "1451081696.518668", "type": "trace", "user": "vagrant"}
+{"args": ["/lib/x86_64-linux-gnu/libselinux.so.1", "O_RDONLY|O_CLOEXEC"], "func": "open", "host": "vagrant-ubuntu-trusty-64", "pid": 6395, "return": 3, "timestamp": "1451081696.518962", "type": "trace", "user": "vagrant"}
+{"args": [3], "func": "close", "host": "vagrant-ubuntu-trusty-64", "pid": 6395, "return": 0, "timestamp": "1451081696.519373", "type": "trace", "user": "vagrant"}
+{"args": ["/lib/x86_64-linux-gnu/libacl.so.1", "O_RDONLY|O_CLOEXEC"], "func": "open", "host": "vagrant-ubuntu-trusty-64", "pid": 6395, "return": 3, "timestamp": "1451081696.519668", "type": "trace", "user": "vagrant"}
+{"args": [3], "func": "close", "host": "vagrant-ubuntu-trusty-64", "pid": 6395, "return": 0, "timestamp": "1451081696.520044", "type": "trace", "user": "vagrant"}
+{"args": ["/lib/x86_64-linux-gnu/libc.so.6", "O_RDONLY|O_CLOEXEC"], "func": "open", "host": "vagrant-ubuntu-trusty-64", "pid": 6395, "return": 3, "timestamp": "1451081696.520333", "type": "trace", "user": "vagrant"}
+{"args": [3], "func": "close", "host": "vagrant-ubuntu-trusty-64", "pid": 6395, "return": 0, "timestamp": "1451081696.520790", "type": "trace", "user": "vagrant"}
+{"args": ["/lib/x86_64-linux-gnu/libpcre.so.3", "O_RDONLY|O_CLOEXEC"], "func": "open", "host": "vagrant-ubuntu-trusty-64", "pid": 6395, "return": 3, "timestamp": "1451081696.521019", "type": "trace", "user": "vagrant"}
+{"args": [3], "func": "close", "host": "vagrant-ubuntu-trusty-64", "pid": 6395, "return": 0, "timestamp": "1451081696.521311", "type": "trace", "user": "vagrant"}
+{"args": ["/lib/x86_64-linux-gnu/libdl.so.2", "O_RDONLY|O_CLOEXEC"], "func": "open", "host": "vagrant-ubuntu-trusty-64", "pid": 6395, "return": 3, "timestamp": "1451081696.521533", "type": "trace", "user": "vagrant"}
+{"args": [3], "func": "close", "host": "vagrant-ubuntu-trusty-64", "pid": 6395, "return": 0, "timestamp": "1451081696.521824", "type": "trace", "user": "vagrant"}
+{"args": ["/lib/x86_64-linux-gnu/libattr.so.1", "O_RDONLY|O_CLOEXEC"], "func": "open", "host": "vagrant-ubuntu-trusty-64", "pid": 6395, "return": 3, "timestamp": "1451081696.522049", "type": "trace", "user": "vagrant"}
+{"args": [3], "func": "close", "host": "vagrant-ubuntu-trusty-64", "pid": 6395, "return": 0, "timestamp": "1451081696.522355", "type": "trace", "user": "vagrant"}
+{"args": ["/proc/filesystems", "O_RDONLY"], "func": "open", "host": "vagrant-ubuntu-trusty-64", "pid": 6395, "return": 3, "timestamp": "1451081696.523066", "type": "trace", "user": "vagrant"}
+{"args": [3], "func": "close", "host": "vagrant-ubuntu-trusty-64", "pid": 6395, "return": 0, "timestamp": "1451081696.523504", "type": "trace", "user": "vagrant"}
+{"args": ["/usr/lib/locale/locale-archive", "O_RDONLY|O_CLOEXEC"], "func": "open", "host": "vagrant-ubuntu-trusty-64", "pid": 6395, "return": 3, "timestamp": "1451081696.523773", "type": "trace", "user": "vagrant"}
+{"args": [3], "func": "close", "host": "vagrant-ubuntu-trusty-64", "pid": 6395, "return": 0, "timestamp": "1451081696.524016", "type": "trace", "user": "vagrant"}
+{"args": [3], "func": "close", "host": "vagrant-ubuntu-trusty-64", "pid": 6395, "return": 0, "timestamp": "1451081696.525156", "type": "trace", "user": "vagrant"}
+{"args": [1], "func": "close", "host": "vagrant-ubuntu-trusty-64", "pid": 6395, "return": 0, "timestamp": "1451081696.528447", "type": "trace", "user": "vagrant"}
+{"args": [2], "func": "close", "host": "vagrant-ubuntu-trusty-64", "pid": 6395, "return": 0, "timestamp": "1451081696.528772", "type": "trace", "user": "vagrant"}
+{"args": [], "func": "exit", "host": "vagrant-ubuntu-trusty-64", "pid": 6395, "return": 0, "timestamp": "1451081696.529113", "type": "trace", "user": "vagrant"}
