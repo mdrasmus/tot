@@ -49,7 +49,7 @@ class STraceTracer(tot.tracer.Tracer):
     def _run_trace(self, cmd):
         self.retcode = call([
             'strace', '-ttt', '-f',
-            '-e', 'trace=open,close,execve,clone',
+            '-e', 'trace=open,close,execve,clone,fork,vfork',
             '-o', self._fifo] + cmd)
 
     def _parse_args(self, expr):
@@ -127,41 +127,50 @@ class STraceTracer(tot.tracer.Tracer):
 
         return args
 
+    def _parse_strace_line(self, line):
+        """
+        Parse an strace line.
+        """
+        pid, timestamp, rest = line.split(None, 2)
+        pid = int(pid)
+
+        # TODO: also parse `+++ killed by SIGINT +++`
+        exit_groups = re.match('\+\+\+ exited with (\d+) \+\+\+', rest)
+        signal_groups = re.match('--- SIGCHLD .* ---', rest)
+
+        if exit_groups:
+            # Process exit event.
+            func = 'exit'
+            args = []
+            result = int(exit_groups.groups()[0])
+        elif signal_groups:
+            # Not logging signals currently.
+            return None
+        else:
+            # Syscall event.
+            func, rest = rest.split('(', 1)
+            args = self._parse_args(rest)
+
+            # Parse return value.
+            i = rest.rfind('=')
+            if i != -1:
+                result = parse_arg(rest[i + 1:].strip())
+            else:
+                result = None
+
+        return {
+            'type': 'trace',
+            'host': self.host,
+            'user': self.user,
+            'pid': pid,
+            'timestamp': timestamp,
+            'func': func,
+            'args': args,
+            'return': result,
+        }
+
     def _parse_strace(self, stream):
         for line in stream:
-            pid, timestamp, rest = line.split(None, 2)
-            pid = int(pid)
-
-            exit_groups = re.match('\+\+\+ exited with (\d+) \+\+\+', rest)
-            signal_groups = re.match('--- SIGCHLD .* ---', rest)
-
-            if exit_groups:
-                # Process exit event.
-                func = 'exit'
-                args = []
-                result = int(exit_groups.groups()[0])
-            elif signal_groups:
-                # Not logging signals currently.
-                continue
-            else:
-                # Syscall event.
-                func, rest = rest.split('(', 1)
-                args = self._parse_args(rest)
-
-                # Parse return value.
-                i = rest.rfind('=')
-                if i != -1:
-                    result = parse_arg(rest[i + 1:].strip())
-                else:
-                    result = None
-
-            yield {
-                'type': 'trace',
-                'host': self.host,
-                'user': self.user,
-                'pid': pid,
-                'timestamp': timestamp,
-                'func': func,
-                'args': args,
-                'return': result,
-            }
+            row = self._parse_strace_line(line)
+            if row:
+                yield row
