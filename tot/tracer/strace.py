@@ -129,8 +129,6 @@ class STraceTracer(tot.tracer.Tracer):
 
     def _parse_strace(self, stream):
         for line in stream:
-            print line,
-
             pid, timestamp, rest = line.split(None, 2)
             pid = int(pid)
 

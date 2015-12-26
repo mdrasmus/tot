@@ -6,6 +6,7 @@ grep '^user_allow_other' /etc/fuse.conf > /dev/null || (
     echo 'user_allow_other' >> /etc/fuse.conf
 )
 EOF
+sudo chmod 644 /etc/fuse.conf
 
 
 # Allow users to run tot-chroot with sudo.
