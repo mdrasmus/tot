@@ -17,7 +17,6 @@ from tot.config import get_user_passwd
 from tot.config import setup_config
 
 
-
 if os.getuid() != 0:
     # Running as normal user.
 

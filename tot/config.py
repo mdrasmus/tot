@@ -1,8 +1,19 @@
 import os
 import pwd
+import socket
 from subprocess import call
 import sys
 import uuid
+
+
+class Session(object):
+    """
+    A tot recording session.
+    """
+    def __init__(self, id=None):
+        self.id = id or str(uuid.uuid4())
+        self.host = socket.gethostname()
+        self.user = get_user()
 
 
 def get_user():

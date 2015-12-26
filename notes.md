@@ -43,6 +43,8 @@ traces as:
 lstat("/dev/null", {st_mode=S_IFCHR|0666, st_rdev=makedev(1, 3), ...}) = 0
 ```
 
+I am currently not parsing calls with structs, I could defer implementing this.
+
 Return value can also be symbolic.
 ```
 lstat("/foo/bar", 0xb004) = -1 ENOENT (No such file or directory)
@@ -61,6 +63,77 @@ don't need to log individual reads.
     active at a time. So when I see a `<... $call resumed>` I know it pairs up with the
     last `<unfinished ..>` line of the same process.
   - I could preprocess these lines to repair them, then do normal parsing.
+  - Does resumed and unfinish ever appear on the same line?
+
+- Ok, now that I have all this implemented, I should try to reconstruct the processes and
+  files from the logs to see if I am logging enough. My plan is to implement a command line
+  like
+    `tot db import $log_filename`
+  This would add the logs to a sqlite database.
+  Then from the db I can query and visualize the commands that were run.
+
+- I'll make an example test set using:
+  `bin/tot --log test.log --log-fs test.fs.log bash -c 'echo hello | cat > out'`
+
+
+- Here is an example of execve's, clone's, and exit's:
+
+```
+6190 execve [u'/bin/bash', [u'bash', u'-c', u'echo hello | cat > out'], []] 0
+6190 clone [u'child_stack=0', u'flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD', u'child_tidptr=0x7f43ad5caa10'] 6191
+6190 clone [u'child_stack=0', u'flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD', u'child_tidptr=0x7f43ad5caa10'] 6192
+6191 exit [] 0
+6192 execve [u'/bin/cat', [u'cat'], []] 0
+6192 exit [] 0
+6190 exit [] 0
+```
+
+- For each clone we have parent id --> child id
+
+- Multiple execve in the same process would be messy to model. What is the process model?
+- Ideally we would have:
+
+Process
+- pid
+- args
+- exit code
+
+But with multiple execs, they replace the program. I could create a new id called `task_id`
+and I could increment it everytime there is a new exec. This would allow me to store the
+args for each task. `pid` would no longer be the primary key. Would be nice to record a UUID
+per host/pid, so that combining logs is always safe.
+
+Process
+- pid
+- task_id
+- args
+- exit code
+
+There would always be one current task_id per pid, so its always clear which "task" the event
+belongs to.
+
+So processing logs would first involve associating a task_id to each event.
+
+So far these are the events I can capturing:
+
+- process starting: clone,fork,vfork
+- task starting: execve 
+- files:
+  - open
+    - task_id
+    - filename
+    - mode
+    - fd
+  - close
+    - task_id
+    - fd (from this I can related back to a filename).
+
+Ah, I will need to trace dup calls in order to see what other closes relate to. Although,
+how important are close calls? I guess I do listen to them in order to know when to hash
+after writing a file.
+- How many fd-related syscalls do I need to trace?
+- Where can I find a complete list?
+
 
 =============================================================================
 2015-12-25

@@ -19,11 +19,20 @@ from fuse import FUSE, FuseOSError, Operations
 
 
 class Passthrough(Operations):
-    def __init__(self, root, logger, host=None):
+    def __init__(self, session, root, logger):
+        self.session = session
         self.root = root
         self.logger = logger
-        self.host = host or socket.gethostname()
-        self.user = pwd.getpwuid(os.getuid()).pw_name
+
+        # Start session.
+        logger({
+            'type': 'fs',
+            'session': self.session.id,
+            'host': self.session.host,
+            'user': self.session.user,
+            'timestamp': str(time.time()),
+            'func': 'init',
+        })
 
     # Helpers
     # =======
@@ -137,8 +146,9 @@ class Passthrough(Operations):
 
         event = {
             'type': 'fs',
-            'host': self.host,
-            'user': self.user,
+            'session': self.session.id,
+            'host': self.session.host,
+            'user': self.session.user,
             'timestamp': str(time.time()),
             'func': 'open',
             'path': path,
@@ -179,8 +189,9 @@ class Passthrough(Operations):
         file_hash = self._get_file_hash(full_path)
         event = {
             'type': 'fs',
-            'host': self.host,
-            'user': self.user,
+            'session': self.session.id,
+            'host': self.session.host,
+            'user': self.session.user,
             'timestamp': str(time.time()),
             'func': 'close',
             'path': path,
@@ -200,8 +211,8 @@ class TotFS(object):
     A filesystem shim that allows recording of all fs interaction.
     """
 
-    def __init__(self, logger, root='/'):
-        self.fs = Passthrough(root, logger)
+    def __init__(self, session, logger, root='/'):
+        self.fs = Passthrough(session, root, logger)
 
     def mount(self, mountpoint):
         FUSE(self.fs, mountpoint,

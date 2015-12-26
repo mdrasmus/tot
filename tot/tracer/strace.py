@@ -160,8 +160,9 @@ class STraceTracer(tot.tracer.Tracer):
 
         return {
             'type': 'trace',
-            'host': self.host,
-            'user': self.user,
+            'session': self.session.id,
+            'host': self.session.host,
+            'user': self.session.user,
             'pid': pid,
             'timestamp': timestamp,
             'func': func,
