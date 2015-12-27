@@ -141,8 +141,12 @@ after writing a file.
 10050 1451198989.131072 chdir("/vagrant/tot") = 0
 ```
 
-yep, chdir is a syscall that I could track per process.
+- [x] Yep, chdir is a syscall that I could track per process. Need to perform this processing
+  at db load time so that FileEvent always has full paths.
+  `os.path.join(cwd, row['filename'])`
 
+- [ ] After that, I can create ProcessFile rows. Each FileEvent should get_or_create a
+  ProcessFile.
 
 =============================================================================
 2015-12-25

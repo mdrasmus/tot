@@ -153,11 +153,15 @@ class TotDatabase(object):
                     self.fds = dict(parent.fds)
                     self.cwd = parent.cwd
 
+        sessions_cwd = ''
         procs = {}
 
         for row in logs:
             if row['type'] == 'trace':
-                if row['func'] == 'execve':
+                if row['func'] == 'init':
+                    [session_cwd] = row['args']
+
+                elif row['func'] == 'execve':
                     # New task.
                     proc = procs.get(row['pid'])
                     child_task_id = self.new_task_id(
@@ -165,7 +169,7 @@ class TotDatabase(object):
                     if not proc:
                         # First process of the session.
                         procs[row['pid']] = ProcInfo(
-                            row['pid'], child_task_id, '')
+                            row['pid'], child_task_id, session_cwd)
                         parent_task_id = None
                     else:
                         # Update task id.
@@ -219,6 +223,11 @@ class TotDatabase(object):
                     fd = self.parse_fd(row['return'])
 
                     proc = procs[row['pid']]
+
+                    # Convert relative filenames to absolute.
+                    if not filename.startswith('/'):
+                        filename = os.path.join(proc.cwd, filename)
+
                     proc.fds[fd] = (filename, mode)
 
                     if mode == os.O_RDONLY:
