@@ -6,6 +6,8 @@ import sys
 sys.path.extend(['/vagrant', '/vagrant/env/lib/python2.7/site-packages'])
 
 import argparse
+import hashlib
+import json
 import os
 import signal
 from subprocess import call
@@ -21,13 +23,68 @@ from tot.logger import read_logs
 from tot.tracer.strace import STraceTracer
 
 
+def hash_file(path):
+    blocklen = 1024 * 4
+
+    with open(path) as infile:
+        m = hashlib.sha1()
+        while True:
+            block = infile.read(blocklen)
+            if len(block) == 0:
+                break
+            m.update(block)
+    file_hash = m.digest().encode("hex")
+    return file_hash
+
+
 def import_logs(args):
     from tot.db import TotDatabase
 
+    # TODO: make a reset an option.
     db = TotDatabase(args.db, reset=True)
 
     for log_file in args.log_files:
         db.load(read_logs(log_file))
+
+    return 0
+
+
+def format_timestamp(timestamp):
+    return timestamp.strftime('%Y-%M-%d %H:%M:%S')
+
+def format_argv(argv):
+    # TODO: Escape strings correctly.
+    return ' '.join(json.loads(argv))
+
+
+def show_files(args):
+    from tot.db import TotDatabase
+    from tot.db import Process
+    from tot.db import ProcessFile
+
+    db = TotDatabase(args.db)
+
+    for filename in args.files:
+        hash = hash_file(filename)
+        print filename, hash
+
+        process_files = (db.session.query(ProcessFile)
+                         .filter_by(hash=hash)
+                         .order_by('timestamp'))
+        process_ids = [pf.process for pf in process_files]
+        procs = (db.session.query(Process)
+                 .filter(Process.id.in_(process_ids))
+                 .order_by('start_time'))
+
+        for proc in procs:
+            print '$ {}'.format(format_argv(proc.argv))
+            print '  proc:  {} pid={}'.format(
+                format_timestamp(proc.start_time), proc.pid)
+
+            for pf in process_files:
+                if pf.process == proc.id:
+                    print '  {}: {} ({})'.format(
+                        pf.action, pf.filename, pf.hash[:8])
 
     return 0
 
@@ -55,6 +112,13 @@ def main(argv):
     parser_import.add_argument('log_files', nargs='*',
                                help='log files to import')
     parser_import.set_defaults(func=import_logs)
+
+    # show command.
+    parser_import = subparsers.add_parser(
+        'show', help='import logs')
+    parser_import.add_argument('files', nargs='*',
+                               help='files to query')
+    parser_import.set_defaults(func=show_files)
 
     # Parse command line arguments.
     args, rest = parser.parse_known_args(argv)
