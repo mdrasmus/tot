@@ -101,14 +101,13 @@ class TotDatabase(object):
         self.Session.configure(bind=self.engine)
         self.session = self.Session()
 
-    def new_task_id(self, session_id, timestamp):
+    def new_task_id(self, session_id, pid, timestamp):
         """
         Create a deterministic globally unique task id using hashing.
         """
         m = hashlib.sha1()
-        text = '{}:{}'.format(session_id, timestamp)
+        text = '{}:{}:{}'.format(session_id, pid, timestamp)
         m.update(text)
-        print session_id, timestamp, m.digest().encode("hex")
         return m.digest().encode("hex")
 
     def parse_timestamp(self, timestamp_str):
@@ -143,6 +142,11 @@ class TotDatabase(object):
         Load tot logs into database.
         """
 
+        class ProcInfo(object):
+            def __init__(self, pid):
+                self.pid = pid
+                self.task_id = None
+
         pid2task = {}
         task_fd2file = defaultdict(dict)
 
@@ -152,7 +156,7 @@ class TotDatabase(object):
                     # New task.
                     parent_task_id = pid2task.get(row['pid'])
                     child_task_id = self.new_task_id(
-                        row['session'], row['timestamp'])
+                        row['session'], row['pid'], row['timestamp'])
                     pid2task[row['pid']] = child_task_id
 
                     # Copy file descriptors.
@@ -174,7 +178,7 @@ class TotDatabase(object):
                     parent_id = row['pid']
                     parent_task_id = pid2task[parent_id]
                     child_task_id = self.new_task_id(
-                        row['session'], row['timestamp'])
+                        row['session'], row['pid'], row['timestamp'])
                     pid2task[child_id] = child_task_id
 
                     # Copy file descriptors.

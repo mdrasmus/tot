@@ -30,10 +30,10 @@ class TestDB(TestCase):
         proc_ids = [(proc.pid, proc.id) for proc in procs]
 
         expected_proc_ids = [
-            (10542, '104bfa6c4a029883d2fd9961b3adbabc02f4ac11'),
-            (10543, '5786b61d85f9d24f3b14347ecd0a507bdbf19933'),
-            (10544, '68086d14901c8e2094d9998a9e40eddc094f1836'),
-            (10544, '72e5c05bd457db4a8affd2d0425d3be42d92f026'),
+            (10542, u'dc13111781e4e337b16dd3c75e143055d74f8566'),
+            (10543, u'ad405e0398d0dee7a22f346a48b82fa8bd6f272f'),
+            (10544, u'4e6607fd3ee39bae479871e9297cbf36c2ac69c3'),
+            (10544, u'2896330bf2b3ccb5aee09f8e66dcd01f4a3a3d27'),
         ]
 
         self.assertEqual(proc_ids, expected_proc_ids)
