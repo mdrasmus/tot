@@ -17,22 +17,50 @@ from tot.config import get_user_mount_dir
 from tot.config import setup_config
 from tot.config import Session
 from tot.logger import Logger
+from tot.logger import read_logs
 from tot.tracer.strace import STraceTracer
 
 
-# Command parser.
-parser = argparse.ArgumentParser()
+def import_logs(args):
+    from tot.db import TotDatabase
 
-parser.add_argument('--log', default='tot.log',
-                    help='log file')
-parser.add_argument('--log-fs', default='tot-fs.log',
-                    help='log fs file')
-parser.add_argument('--chroot')
+    db = TotDatabase(args.db, reset=True)
+
+    for log_file in args.log_files:
+        db.load(read_logs(log_file))
+
+    return 0
 
 
 def main(argv):
+    # Build command-line parser.
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers()
+
+    parser.add_argument('--log', default='tot.log',
+                        help='log file')
+    parser.add_argument('--log-fs', default='tot-fs.log',
+                        help='log fs file')
+    parser.add_argument('--db', default='tot.db', help='database file')
+    parser.add_argument('--chroot')
+
+    # log command.
+    parser_log = subparsers.add_parser(
+        'log', help='log command')
+    parser_log.set_defaults(func=None)
+
+    # import command.
+    parser_import = subparsers.add_parser(
+        'import', help='import logs')
+    parser_import.add_argument('log_files', nargs='*',
+                               help='log files to import')
+    parser_import.set_defaults(func=import_logs)
+
     # Parse command line arguments.
     args, rest = parser.parse_known_args(argv)
+
+    if args.func:
+        return args.func(args)
 
     # Setup user config.
     setup_config()
