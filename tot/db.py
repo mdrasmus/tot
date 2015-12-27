@@ -143,25 +143,34 @@ class TotDatabase(object):
         """
 
         class ProcInfo(object):
-            def __init__(self, pid):
+            def __init__(self, pid, task_id, cwd='', parent=None):
                 self.pid = pid
-                self.task_id = None
+                self.task_id = task_id
+                self.fds = {}
+                self.cwd = cwd
 
-        pid2task = {}
-        task_fd2file = defaultdict(dict)
+                if parent:
+                    self.fds = dict(parent.fds)
+                    self.cwd = parent.cwd
+
+        procs = {}
 
         for row in logs:
             if row['type'] == 'trace':
                 if row['func'] == 'execve':
                     # New task.
-                    parent_task_id = pid2task.get(row['pid'])
+                    proc = procs.get(row['pid'])
                     child_task_id = self.new_task_id(
                         row['session'], row['pid'], row['timestamp'])
-                    pid2task[row['pid']] = child_task_id
-
-                    # Copy file descriptors.
-                    task_fd2file[child_task_id] = dict(
-                        task_fd2file[parent_task_id])
+                    if not proc:
+                        # First process of the session.
+                        procs[row['pid']] = ProcInfo(
+                            row['pid'], child_task_id, '')
+                        parent_task_id = None
+                    else:
+                        # Update task id.
+                        parent_task_id = proc.task_id
+                        proc.task_id = child_task_id
 
                     self.load_start_process(
                         session_id=row['session'],
@@ -175,21 +184,17 @@ class TotDatabase(object):
 
                 elif row['func'] in ('clone', 'fork', 'forkv'):
                     child_id = row['return']
-                    parent_id = row['pid']
-                    parent_task_id = pid2task[parent_id]
+                    parent_proc = procs[row['pid']]
                     child_task_id = self.new_task_id(
-                        row['session'], row['pid'], row['timestamp'])
-                    pid2task[child_id] = child_task_id
-
-                    # Copy file descriptors.
-                    task_fd2file[child_task_id] = dict(
-                        task_fd2file[parent_task_id])
+                        row['session'], child_id, row['timestamp'])
+                    procs[child_id] = ProcInfo(
+                        child_id, child_task_id, parent=parent_proc)
 
                     self.load_start_process(
                         session_id=row['session'],
                         id=child_task_id,
                         pid=child_id,
-                        parent_id=parent_task_id,
+                        parent_id=parent_proc.task_id,
                         progname=None,
                         argv=None,
                         start_time=self.parse_timestamp(row['timestamp']),
@@ -197,7 +202,7 @@ class TotDatabase(object):
 
                 elif row['func'] == 'exit':
                     self.load_stop_process(
-                        id=pid2task[row['pid']],
+                        id=procs[row['pid']].task_id,
                         exit_value=row['return'],
                         stop_time=self.parse_timestamp(row['timestamp']),
                     )
@@ -213,31 +218,31 @@ class TotDatabase(object):
                     mode = self.parse_open_mode(mode)
                     fd = self.parse_fd(row['return'])
 
-                    task = pid2task[row['pid']]
-                    task_fd2file[task][fd] = (filename, mode)
+                    proc = procs[row['pid']]
+                    proc.fds[fd] = (filename, mode)
 
                     if mode == os.O_RDONLY:
                         self.load_file_event(
-                            task,
+                            proc.task_id,
                             'read',
                             filename,
                             self.parse_timestamp(row['timestamp']),
                         )
 
                 elif row['func'] in ('dup', 'dup2'):
-                    task = pid2task[row['pid']]
                     old_fd = row['args'][0]
                     new_fd = row['return']
 
                     if new_fd != -1:
-                        file_info = task_fd2file[task].get(old_fd)
+                        proc = procs[row['pid']]
+                        file_info = proc.fds.get(old_fd)
                         if file_info:
-                            task_fd2file[task][new_fd] = file_info
+                            proc.fds[new_fd] = file_info
 
                 elif row['func'] == 'close':
                     fd = row['args'][0]
-                    task = pid2task[row['pid']]
-                    file_info = task_fd2file[task].get(fd)
+                    proc = procs[row['pid']]
+                    file_info = proc.fds.get(fd)
                     if not file_info:
                         continue
 
@@ -245,7 +250,7 @@ class TotDatabase(object):
 
                     if mode & os.O_WRONLY:
                         self.load_file_event(
-                            task,
+                            proc.task_id,
                             'write',
                             filename,
                             self.parse_timestamp(row['timestamp']),
