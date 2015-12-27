@@ -3,6 +3,7 @@ import re
 from subprocess import call
 import tempfile
 import thread
+import time
 
 import tot.tracer
 
@@ -28,6 +29,18 @@ class STraceTracer(tot.tracer.Tracer):
 
         thread.start_new_thread(self._run_trace, (cmd,))
 
+        # Yield the starting of tracing.
+        yield {
+            'type': 'trace',
+            'session': self.session.id,
+            'host': self.session.host,
+            'user': self.session.user,
+            'pid': None,
+            'func': 'init',
+            'args': [os.getcwd()],
+            'timestamp': str(time.time()),
+        }
+
         with open(self._fifo) as stream:
             for row in self._parse_strace(stream):
                 yield row
@@ -47,9 +60,10 @@ class STraceTracer(tot.tracer.Tracer):
         self._tmp_path = None
 
     def _run_trace(self, cmd):
+        syscalls = 'execve,clone,fork,vfork,open,close,dup,dup2,pipe,chdir'
         self.retcode = call([
             'strace', '-ttt', '-f',
-            '-e', 'trace=execve,clone,fork,vfork,open,close,dup,dup2,pipe',
+            '-e', 'trace={}'.format(syscalls),
             '-o', self._fifo] + cmd)
 
     def _parse_args(self, expr):

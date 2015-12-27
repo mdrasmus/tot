@@ -1,5 +1,6 @@
 from collections import defaultdict
 import datetime
+import hashlib
 import json
 import os
 import time
@@ -77,8 +78,11 @@ class TotDatabase(object):
     Database of tot logs.
     """
 
-    def __init__(self, db_file,
-                 echo=False, reset=False):
+    def __init__(self, db_file=None, echo=False, reset=False):
+        if db_file:
+            self.connect(db_file, echo=echo, reset=reset)
+
+    def connect(self, db_file, echo=False, reset=False):
         self.db_file = db_file
 
         if reset:
@@ -97,8 +101,15 @@ class TotDatabase(object):
         self.Session.configure(bind=self.engine)
         self.session = self.Session()
 
-    def new_task_id(self):
-        return str(uuid.uuid4())
+    def new_task_id(self, session_id, timestamp):
+        """
+        Create a deterministic globally unique task id using hashing.
+        """
+        m = hashlib.sha1()
+        text = '{}:{}'.format(session_id, timestamp)
+        m.update(text)
+        print session_id, timestamp, m.digest().encode("hex")
+        return m.digest().encode("hex")
 
     def parse_timestamp(self, timestamp_str):
         timestamp = datetime.datetime.fromtimestamp(float(timestamp_str))
@@ -140,7 +151,8 @@ class TotDatabase(object):
                 if row['func'] == 'execve':
                     # New task.
                     parent_task_id = pid2task.get(row['pid'])
-                    child_task_id = self.new_task_id()
+                    child_task_id = self.new_task_id(
+                        row['session'], row['timestamp'])
                     pid2task[row['pid']] = child_task_id
 
                     # Copy file descriptors.
@@ -161,7 +173,8 @@ class TotDatabase(object):
                     child_id = row['return']
                     parent_id = row['pid']
                     parent_task_id = pid2task[parent_id]
-                    child_task_id = self.new_task_id()
+                    child_task_id = self.new_task_id(
+                        row['session'], row['timestamp'])
                     pid2task[child_id] = child_task_id
 
                     # Copy file descriptors.

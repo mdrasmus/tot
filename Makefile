@@ -10,7 +10,13 @@ $(VENV_DIR): requirements-dev.txt
 teardown:
 	rm -rf $(VENV_DIR)
 
+test-data:
+	bin/tot \
+	    --log tot/test_data/chdir.log \
+	    --log-fs tot/test_data/chdir.fs.log \
+	    log bash -c 'cd tmp; echo hello | cat > out'
+
 test:
 	nosetests -sv tot
 
-.PHONY: teardown
+.PHONY: teardown test test-data
