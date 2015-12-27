@@ -49,7 +49,7 @@ class STraceTracer(tot.tracer.Tracer):
     def _run_trace(self, cmd):
         self.retcode = call([
             'strace', '-ttt', '-f',
-            '-e', 'trace=open,close,execve,clone,fork,vfork',
+            '-e', 'trace=execve,clone,fork,vfork,open,close,dup,dup2,pipe',
             '-o', self._fifo] + cmd)
 
     def _parse_args(self, expr):

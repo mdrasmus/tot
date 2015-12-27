@@ -1,2 +1,2 @@
 fusepy==2.0.2
-
+SQLAlchemy==1.0.11
