@@ -71,6 +71,7 @@ class ProcessFile(Model):
     action = Column(String)
     filename = Column(String)
     hash = Column(String)
+    timestamp = Column(DateTime)
 
 
 class TotDatabase(object):
@@ -265,6 +266,10 @@ class TotDatabase(object):
                             self.parse_timestamp(row['timestamp']),
                         )
 
+                elif row['func'] == 'chdir':
+                    proc = procs[row['pid']]
+                    [proc.cwd] = row['args']
+
             elif row['type'] == 'fs':
                 if row.get('hash'):
                     self.load_file_state(
@@ -280,8 +285,28 @@ class TotDatabase(object):
 
     def load_process_files(self):
 
-        print self.session.query(FileEvent).count()
-        print self.session.query(FileState).count()
+        file_events = list(self.session.query(FileEvent).order_by('timestamp'))
+        file_states = list(self.session.query(FileState).order_by('timestamp'))
+
+        for file_event in file_events:
+            # TODO: also consider session.
+            near_fs = [fs for fs in file_states
+                       if fs.filename == file_event.filename]
+            if not near_fs:
+                continue
+            nearest_fs = min(
+                near_fs,
+                key=lambda fs: abs(file_event.timestamp - fs.timestamp))
+
+            self.load_process_file(
+                process=file_event.process,
+                action=file_event.action,
+                filename=file_event.filename,
+                hash=nearest_fs.hash,
+                timestamp=file_event.timestamp,
+            )
+
+        self.session.commit()
 
     def load_start_process(self, session_id, id, pid, parent_id,
                            progname, argv, start_time):
@@ -320,9 +345,17 @@ class TotDatabase(object):
         ))
 
     def load_file_state(self, session_id, filename, hash, timestamp):
-
         self.session.add(FileState(
             session=None,
+            filename=filename,
+            hash=hash,
+            timestamp=timestamp,
+        ))
+
+    def load_process_file(self, process, action, filename, hash, timestamp):
+        self.session.add(ProcessFile(
+            process=process,
+            action=action,
             filename=filename,
             hash=hash,
             timestamp=timestamp,

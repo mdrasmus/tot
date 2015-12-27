@@ -43,5 +43,6 @@ class TestDB(TestCase):
                        .filter_by(action='write'))
         self.assertEqual(
             sorted((f.filename, f.action) for f in file_events),
-            [('/vagrant/out', 'write'), ('/vagrant/out', 'write')],
+            [('/vagrant/tmp/out', 'write'),
+             ('/vagrant/tmp/out', 'write')],
         )
