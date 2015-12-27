@@ -52,39 +52,132 @@ def import_logs(args):
 def format_timestamp(timestamp):
     return timestamp.strftime('%Y-%M-%d %H:%M:%S')
 
-def format_argv(argv):
+def format_argv(progname, argv):
     # TODO: Escape strings correctly.
-    return ' '.join(json.loads(argv))
+    argv = json.loads(argv)
+    return ' '.join([progname] + argv[1:])
 
 
-def show_files(args):
+def show_procs(db, proc_id=None, parent=None, depth=0, level='full'):
+    from tot.db import Process
+    from tot.db import ProcessFile
+
+    if proc_id:
+        procs = (db.session.query(Process)
+                 .filter_by(id=proc_id)
+                 .order_by('start_time'))
+    else:
+        # Show all top-level processes.
+        procs = (db.session.query(Process)
+                 .filter_by(parent=parent)
+                 .order_by('start_time'))
+
+    for proc in procs:
+        print '{} {}{} $ {}'.format(
+            format_timestamp(proc.start_time),
+            proc.id[:8],
+            ' ' * (depth * 2),
+            format_argv(proc.progname, proc.argv))
+
+        if level == 'full':
+            parent_id = proc.parent[:8] if proc.parent else 'None'
+            print '  pid={}, parent={} '.format(proc.pid, parent_id)
+
+            files = (db.session.query(ProcessFile)
+                     .filter_by(process=proc.id))
+            for pf in files:
+                print '  {}: {} ({})'.format(
+                    pf.action, pf.filename, pf.hash[:8])
+            print
+
+        show_procs(db, parent=proc.id, depth=depth + 1,
+                   level=level)
+
+
+def show_file(db, filename=None, hash=None):
+    from tot.db import Process
+    from tot.db import ProcessFile
+
+    if filename:
+        hash = hash_file(filename)
+
+    process_files = (db.session.query(ProcessFile)
+                     .filter_by(hash=hash)
+                     .order_by('timestamp'))
+
+    if process_files.count() == 0:
+        print 'Unknown file: {}'.format(filename)
+        return
+
+    process_ids = [pf.process for pf in process_files]
+    procs = (db.session.query(Process)
+             .filter(Process.id.in_(process_ids))
+             .order_by('start_time'))
+
+    for proc in procs:
+        print '{} {} $ {}'.format(
+            format_timestamp(proc.start_time),
+            proc.id[:8],
+            format_argv(proc.progname, proc.argv))
+        print '  proc:  pid={}'.format(proc.pid)
+
+        for pf in process_files:
+            if pf.process == proc.id:
+                print '  {}: {} ({})'.format(
+                    pf.action, pf.filename, pf.hash[:8])
+
+
+def unique(items, key=lambda x: x):
+    seen = set()
+    for item in items:
+        if item not in seen:
+            yield item
+            seen.add(item)
+
+def show(args):
     from tot.db import TotDatabase
     from tot.db import Process
     from tot.db import ProcessFile
 
     db = TotDatabase(args.db)
 
-    for filename in args.files:
-        hash = hash_file(filename)
-        print filename, hash
+    if not args.objects:
+        # Show a list of all processes.
+        # TODO: use a PAGER to avoid printing too much. Similar to git log.
+        show_procs(db)
 
-        process_files = (db.session.query(ProcessFile)
-                         .filter_by(hash=hash)
-                         .order_by('timestamp'))
-        process_ids = [pf.process for pf in process_files]
+    for obj in args.objects:
+        shown = False
+
+        # Try to display object as a local filename.
+        if os.path.exists(obj):
+            show_file(db, obj)
+            continue
+
+        # Try to display object as a file hash.
+        proc_files = (db.session.query(ProcessFile)
+                      .filter(ProcessFile.hash.contains(obj))
+                      .order_by('timestamp'))
+        proc_files = list(unique(proc_files, key=lambda pf: pf.hash))
+        for proc_file in proc_files:
+            if proc_file.hash.startswith(obj):
+                show_file(db, hash=proc_file.hash)
+                shown = True
+
+        if shown:
+            continue
+
+        # Try to display object as a process id.
         procs = (db.session.query(Process)
-                 .filter(Process.id.in_(process_ids))
+                 .filter(Process.id.contains(obj))
                  .order_by('start_time'))
-
         for proc in procs:
-            print '$ {}'.format(format_argv(proc.argv))
-            print '  proc:  {} pid={}'.format(
-                format_timestamp(proc.start_time), proc.pid)
+            if proc.id.startswith(obj):
+                show_procs(db, proc_id=proc.id)
+                shown = True
 
-            for pf in process_files:
-                if pf.process == proc.id:
-                    print '  {}: {} ({})'.format(
-                        pf.action, pf.filename, pf.hash[:8])
+        if shown:
+            continue
 
     return 0
 
@@ -116,9 +209,9 @@ def main(argv):
     # show command.
     parser_import = subparsers.add_parser(
         'show', help='import logs')
-    parser_import.add_argument('files', nargs='*',
-                               help='files to query')
-    parser_import.set_defaults(func=show_files)
+    parser_import.add_argument('objects', nargs='*',
+                               help='files or processes to query')
+    parser_import.set_defaults(func=show)
 
     # Parse command line arguments.
     args, rest = parser.parse_known_args(argv)
