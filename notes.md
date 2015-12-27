@@ -134,6 +134,15 @@ after writing a file.
 - How many fd-related syscalls do I need to trace?
 - Where can I find a complete list?
 
+- Annoyingly, strace uses relative file names sometimes. Makes sense though. Do I always
+  know the process's cwd? Is changing cwd a syscall?
+
+```
+10050 1451198989.131072 chdir("/vagrant/tot") = 0
+```
+
+yep, chdir is a syscall that I could track per process.
+
 
 =============================================================================
 2015-12-25

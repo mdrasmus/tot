@@ -56,22 +56,20 @@ class FileState(Model):
     __tablename__ = 'file_state'
 
     id = Column(Integer, primary_key=True)
-    session_id = Column(String, sqla.ForeignKey('session.id'))
+    session = Column(String, sqla.ForeignKey('session.id'), nullable=True)
     filename = Column(String)
-    timestamp = Column(DateTime)
     hash = Column(String)
+    timestamp = Column(DateTime)
 
 
 class ProcessFile(Model):
     __tablename__ = 'process_file'
 
     id = Column(Integer, primary_key=True)
-    process_id = Column(String, sqla.ForeignKey('process.id'))
+    process = Column(String, sqla.ForeignKey('process.id'))
     action = Column(String)
     filename = Column(String)
     hash = Column(String)
-
-
 
 
 class TotDatabase(object):
@@ -138,104 +136,121 @@ class TotDatabase(object):
         task_fd2file = defaultdict(dict)
 
         for row in logs:
-            if row['func'] == 'execve':
-                # New task.
-                parent_task_id = pid2task.get(row['pid'])
-                child_task_id = self.new_task_id()
-                pid2task[row['pid']] = child_task_id
+            if row['type'] == 'trace':
+                if row['func'] == 'execve':
+                    # New task.
+                    parent_task_id = pid2task.get(row['pid'])
+                    child_task_id = self.new_task_id()
+                    pid2task[row['pid']] = child_task_id
 
-                # Copy file descriptors.
-                task_fd2file[child_task_id] = dict(
-                    task_fd2file[parent_task_id])
+                    # Copy file descriptors.
+                    task_fd2file[child_task_id] = dict(
+                        task_fd2file[parent_task_id])
 
-                self.load_start_process(
-                    session_id=row['session'],
-                    id=child_task_id,
-                    pid=row['pid'],
-                    parent_id=parent_task_id,
-                    progname=row['args'][0],
-                    argv=row['args'][1],
-                    start_time=self.parse_timestamp(row['timestamp']),
-                )
-
-            elif row['func'] in ('clone', 'fork', 'forkv'):
-                child_id = row['return']
-                parent_id = row['pid']
-                parent_task_id = pid2task[parent_id]
-                child_task_id = self.new_task_id()
-                pid2task[child_id] = child_task_id
-
-                # Copy file descriptors.
-                task_fd2file[child_task_id] = dict(
-                    task_fd2file[parent_task_id])
-
-                self.load_start_process(
-                    session_id=row['session'],
-                    id=child_task_id,
-                    pid=child_id,
-                    parent_id=parent_task_id,
-                    progname=None,
-                    argv=None,
-                    start_time=self.parse_timestamp(row['timestamp']),
-                )
-
-            elif row['func'] == 'exit':
-                self.load_stop_process(
-                    id=pid2task[row['pid']],
-                    exit_value=row['return'],
-                    stop_time=self.parse_timestamp(row['timestamp']),
-                )
-
-            elif row['func'] == 'open':
-                args = row['args']
-                if len(args) == 2:
-                    filename, mode = args
-                    flags = 0
-                else:
-                    filename, mode, flags = args
-
-                mode = self.parse_open_mode(mode)
-                fd = self.parse_fd(row['return'])
-
-                task = pid2task[row['pid']]
-                task_fd2file[task][fd] = (filename, mode)
-
-                if mode == os.O_RDONLY:
-                    self.load_file_event(
-                        task,
-                        'read',
-                        filename,
-                        self.parse_timestamp(row['timestamp']),
+                    self.load_start_process(
+                        session_id=row['session'],
+                        id=child_task_id,
+                        pid=row['pid'],
+                        parent_id=parent_task_id,
+                        progname=row['args'][0],
+                        argv=row['args'][1],
+                        start_time=self.parse_timestamp(row['timestamp']),
                     )
 
-            elif row['func'] in ('dup', 'dup2'):
-                task = pid2task[row['pid']]
-                old_fd = row['args'][0]
-                new_fd = row['return']
+                elif row['func'] in ('clone', 'fork', 'forkv'):
+                    child_id = row['return']
+                    parent_id = row['pid']
+                    parent_task_id = pid2task[parent_id]
+                    child_task_id = self.new_task_id()
+                    pid2task[child_id] = child_task_id
 
-                if new_fd != -1:
-                    file_info = task_fd2file[task].get(old_fd)
-                    if file_info:
-                        task_fd2file[task][new_fd] = file_info
+                    # Copy file descriptors.
+                    task_fd2file[child_task_id] = dict(
+                        task_fd2file[parent_task_id])
 
-            elif row['func'] == 'close':
-                fd = row['args'][0]
-                task = pid2task[row['pid']]
-                file_info = task_fd2file[task].get(fd)
-                if not file_info:
-                    continue
+                    self.load_start_process(
+                        session_id=row['session'],
+                        id=child_task_id,
+                        pid=child_id,
+                        parent_id=parent_task_id,
+                        progname=None,
+                        argv=None,
+                        start_time=self.parse_timestamp(row['timestamp']),
+                    )
 
-                filename, mode = file_info
+                elif row['func'] == 'exit':
+                    self.load_stop_process(
+                        id=pid2task[row['pid']],
+                        exit_value=row['return'],
+                        stop_time=self.parse_timestamp(row['timestamp']),
+                    )
 
-                if mode & os.O_WRONLY:
-                    self.load_file_event(
-                        task,
-                        'write',
-                        filename,
-                        self.parse_timestamp(row['timestamp']),
+                elif row['func'] == 'open':
+                    args = row['args']
+                    if len(args) == 2:
+                        filename, mode = args
+                        flags = 0
+                    else:
+                        filename, mode, flags = args
+
+                    mode = self.parse_open_mode(mode)
+                    fd = self.parse_fd(row['return'])
+
+                    task = pid2task[row['pid']]
+                    task_fd2file[task][fd] = (filename, mode)
+
+                    if mode == os.O_RDONLY:
+                        self.load_file_event(
+                            task,
+                            'read',
+                            filename,
+                            self.parse_timestamp(row['timestamp']),
+                        )
+
+                elif row['func'] in ('dup', 'dup2'):
+                    task = pid2task[row['pid']]
+                    old_fd = row['args'][0]
+                    new_fd = row['return']
+
+                    if new_fd != -1:
+                        file_info = task_fd2file[task].get(old_fd)
+                        if file_info:
+                            task_fd2file[task][new_fd] = file_info
+
+                elif row['func'] == 'close':
+                    fd = row['args'][0]
+                    task = pid2task[row['pid']]
+                    file_info = task_fd2file[task].get(fd)
+                    if not file_info:
+                        continue
+
+                    filename, mode = file_info
+
+                    if mode & os.O_WRONLY:
+                        self.load_file_event(
+                            task,
+                            'write',
+                            filename,
+                            self.parse_timestamp(row['timestamp']),
+                        )
+
+            elif row['type'] == 'fs':
+                if row.get('hash'):
+                    self.load_file_state(
+                        session_id=row['session'],
+                        filename=row['path'],
+                        hash=row['hash'],
+                        timestamp=self.parse_timestamp(row['timestamp']),
                     )
 
         self.session.commit()
+
+        self.load_process_files()
+
+    def load_process_files(self):
+
+        print self.session.query(FileEvent).count()
+        print self.session.query(FileState).count()
 
     def load_start_process(self, session_id, id, pid, parent_id,
                            progname, argv, start_time):
@@ -270,5 +285,14 @@ class TotDatabase(object):
             process=process_id,
             action=action,
             filename=filename,
+            timestamp=timestamp,
+        ))
+
+    def load_file_state(self, session_id, filename, hash, timestamp):
+
+        self.session.add(FileState(
+            session=None,
+            filename=filename,
+            hash=hash,
             timestamp=timestamp,
         ))
