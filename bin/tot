@@ -40,8 +40,7 @@ def hash_file(path):
 def import_logs(args):
     from tot.db import TotDatabase
 
-    # TODO: make a reset an option.
-    db = TotDatabase(args.db, reset=True)
+    db = TotDatabase(args.db)
 
     for log_file in args.log_files:
         db.load(read_logs(log_file))
@@ -52,10 +51,41 @@ def import_logs(args):
 def format_timestamp(timestamp):
     return timestamp.strftime('%Y-%M-%d %H:%M:%S')
 
+
 def format_argv(progname, argv):
     # TODO: Escape strings correctly.
-    argv = json.loads(argv)
-    return ' '.join([progname] + argv[1:])
+    try:
+        argv = json.loads(argv)
+        return ' '.join([progname] + argv[1:])
+    except ValueError:
+        return '{} {}'.format(progname, argv)
+
+
+
+def is_file_shown(filename):
+    hidden_paths = [
+        '/dev/',
+        '/etc/',
+        '/lib/',
+        '/proc/',
+        '/usr/lib/',
+    ]
+
+    for hidden_path in hidden_paths:
+        if filename.startswith(hidden_path):
+            return False
+
+    return True
+
+def get_proc_files(db, proc_id):
+    from tot.db import ProcessFile
+
+    proc_files = (db.session.query(ProcessFile)
+             .filter_by(process=proc_id))
+
+    for proc_file in proc_files:
+        if is_file_shown(proc_file.filename):
+            yield proc_file
 
 
 def show_procs(db, proc_id=None, parent=None, depth=0, level='full'):
@@ -83,9 +113,9 @@ def show_procs(db, proc_id=None, parent=None, depth=0, level='full'):
             parent_id = proc.parent[:8] if proc.parent else 'None'
             print '  pid={}, parent={} '.format(proc.pid, parent_id)
 
-            files = (db.session.query(ProcessFile)
-                     .filter_by(process=proc.id))
-            for pf in files:
+            #files = (db.session.query(ProcessFile)
+            #         .filter_by(process=proc.id))
+            for pf in get_proc_files(db, proc.id):
                 print '  {}: {} ({})'.format(
                     pf.action, pf.filename, pf.hash[:8])
             print

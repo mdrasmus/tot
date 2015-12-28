@@ -143,6 +143,9 @@ class TotDatabase(object):
         Load tot logs into database.
         """
 
+        logs = list(
+            sorted(logs, key=lambda row: float(row.get('timestamp', 0))))
+
         class ProcInfo(object):
             def __init__(self, pid, task_id, cwd='', parent=None):
                 self.pid = pid
@@ -157,7 +160,11 @@ class TotDatabase(object):
         sessions_cwd = ''
         procs = {}
 
-        for row in logs:
+        for lineno, row in enumerate(logs, 1):
+            if lineno % 1000 == 0:
+                print 'loaded {} of {} lines'.format(lineno, len(logs))
+                self.session.commit()
+
             if row['type'] == 'trace':
                 if row['func'] == 'init':
                     [session_cwd] = row['args']
@@ -187,7 +194,7 @@ class TotDatabase(object):
                         start_time=self.parse_timestamp(row['timestamp']),
                     )
 
-                elif row['func'] in ('clone', 'fork', 'forkv'):
+                elif row['func'] in ('clone', 'fork', 'vfork'):
                     child_id = row['return']
                     parent_proc = procs[row['pid']]
                     child_task_id = self.new_task_id(
@@ -288,10 +295,13 @@ class TotDatabase(object):
         file_events = list(self.session.query(FileEvent).order_by('timestamp'))
         file_states = list(self.session.query(FileState).order_by('timestamp'))
 
+        filename2file_states = defaultdict(list)
+        for fs in file_states:
+            filename2file_states[fs].append(fs)
+
         for file_event in file_events:
             # TODO: also consider session.
-            near_fs = [fs for fs in file_states
-                       if fs.filename == file_event.filename]
+            near_fs = filename2file_states[file_event.filename]
             if not near_fs:
                 continue
             nearest_fs = min(
