@@ -297,7 +297,7 @@ class TotDatabase(object):
 
         filename2file_states = defaultdict(list)
         for fs in file_states:
-            filename2file_states[fs].append(fs)
+            filename2file_states[fs.filename].append(fs)
 
         for file_event in file_events:
             # TODO: also consider session.
