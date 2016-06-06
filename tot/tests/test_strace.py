@@ -1,3 +1,4 @@
+from difflib import unified_diff
 from StringIO import StringIO
 from unittest import TestCase
 
@@ -23,7 +24,15 @@ class TestSTrace(TestCase):
                 out.write(value)
         else:
             with open(filename) as infile:
-                self.assertEqual(infile.read(), value)
+                value2 = infile.read()
+
+            if value != value2:
+                diff = '\n'.join(unified_diff(
+                    value2.split('\n'),
+                    value.split('\n')
+                ))
+                print diff
+                self.fail()
 
     def test_parse_logs(self):
         out_stream = StringIO()
