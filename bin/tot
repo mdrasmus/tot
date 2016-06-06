@@ -21,23 +21,15 @@ from tot.config import Session
 from tot.logger import Logger
 from tot.logger import read_logs
 from tot.tracer.strace import STraceTracer
-
-
-def hash_file(path):
-    blocklen = 1024 * 4
-
-    with open(path) as infile:
-        m = hashlib.sha1()
-        while True:
-            block = infile.read(blocklen)
-            if len(block) == 0:
-                break
-            m.update(block)
-    file_hash = m.digest().encode("hex")
-    return file_hash
+from tot.utils import hash_file
+from tot.utils import format_timestamp
+from tot.utils import unique
 
 
 def import_logs(args):
+    """
+    Import logs into tot db.
+    """
     from tot.db import TotDatabase
 
     db = TotDatabase(args.db)
@@ -48,10 +40,6 @@ def import_logs(args):
     return 0
 
 
-def format_timestamp(timestamp):
-    return timestamp.strftime('%Y-%M-%d %H:%M:%S')
-
-
 def format_argv(progname, argv):
     # TODO: Escape strings correctly.
     try:
@@ -59,7 +47,6 @@ def format_argv(progname, argv):
         return ' '.join([progname] + argv[1:])
     except ValueError:
         return '{} {}'.format(progname, argv)
-
 
 
 def is_file_shown(filename):
@@ -76,6 +63,7 @@ def is_file_shown(filename):
             return False
 
     return True
+
 
 def get_proc_files(db, proc_id):
     from tot.db import ProcessFile
@@ -156,13 +144,6 @@ def show_file(db, filename=None, hash=None):
                 print '  {}: {} ({})'.format(
                     pf.action, pf.filename, pf.hash[:8])
 
-
-def unique(items, key=lambda x: x):
-    seen = set()
-    for item in items:
-        if item not in seen:
-            yield item
-            seen.add(item)
 
 def show(args):
     from tot.db import TotDatabase
