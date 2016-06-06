@@ -17,6 +17,6 @@ test-data:
 	    log bash -c 'cd tmp; echo hello | cat > out'
 
 test:
-	nosetests -sv tot
+	$(VENV) && nosetests -sv tot
 
-.PHONY: teardown test test-data
+.PHONY: setup teardown test test-data
