@@ -325,7 +325,7 @@ class TotDatabase(object):
         else:
             argv_str = json.dumps(argv, sort_keys=True, separators=(',', ':'))
 
-        self.session.add(Process(
+        self.session.merge(Process(
             id=id,
             pid=pid,
             parent=parent_id,
