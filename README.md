@@ -1,4 +1,4 @@
-# Tot: Total Recall command logging tool
+# Tot: Total Recall program tracing tool
 
 *tot* is a unix tool for logging process execution and file IO. It uses kernel
 tracing and virtual file systems to detect every process fork and file IO operation. These logs
