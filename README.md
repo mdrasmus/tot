@@ -5,33 +5,46 @@ tracing and virtual file systems to detect every process fork and file IO operat
 can then be imported into a database and analyzed.
 
 Currently, this repo contains an experimental prototype of how such a command could work.
-I originally started this experiment as Christmas break project in 2015.
+I originally started this experiment as a Christmas break project in 2015.
 
-## Example
+## Quick example
+
+Here is a quick example of what tot can do.
 
 ```
 # Log a command: python example/script1.py
 tot log python examples/script1.py
 
-# Import the logs tot.log and tot-fs.log
+# Import the logs (tot.log and tot-fs.log) into a database.
 tot import tot.log tot-fs.log
 
 # Display the logged executions.
 tot show
 ```
 
+Which displays the following log of every file read and write along with the
+hashes (sha1) of those files.
+
+```
+2019-32-17 23:32:49 5bc875fa         $ /usr/bin/python examples/script1.py
+  pid=5507, parent=aab37012
+  read: /vagrant/examples/script1.py (ecb8231a)
+  read: /vagrant/examples/file1.txt (9736774f)
+  write: /vagrant/examples/file2.txt (5e3adc81)
+```
+
 ## Getting started
 
-To try out the prototype and run the unit tests we first need to setup
+To try out the prototype and run the unit tests, we first need to setup
 the dev environment.
 
-Running the examples requires Vagrant. Start the vagrant virtual machine:
+Running the examples requires [Vagrant](https://www.vagrantup.com/). Start the vagrant virtual machine:
 
 ```sh
 vagrant up
 ```
 
-Log into the VM with:
+After all the installation completes, log into the VM with:
 
 ```sh
 vagrant ssh
@@ -79,29 +92,33 @@ We can run the python program using:
 examples/script1.py
 ```
 
-To log the command, we simply prepend `tot`.
+To log the command, we simply prepend `tot log`.
 
 ```sh
 bin/tot log examples/script1.py
 ```
 
-The program will run as before, however two log files will be created:
+Note: If `/vagrant/bin` is in your path, you can omit the `bin/` path in your commands.
+
+The program will run as before, however now two log files will be created:
 - `tot.log`: A JSON-formatted log of the major syscalls that `script1.py` made.
 - `tot-fs.log`: A JSON-formatted log of the file input and output that `script1.py` performed.
 
 These are the default file paths. They can be explicitly specified with `--log` and `--log-fs`.
 
 To make searching these log files more efficient, we can import them into a sqlite database.
-Currently in this prototype, this is not done automatically, but could be implemented if desired:
 
 ```sh
 bin/tot import tot.log tot-fs.log
 ```
 
+Currently in this prototype, the import is not done automatically while logging. However,
+it would be resonable for a real tool to implement automatic import.
+
 On the first run, this will create a sqlite database `tot.db`. Similarly, a different file path
 can be specified with `--db`.
 
-We can now query and display the log commands and their syscalls and IO using
+We can now display the logged commands, including their syscalls and IO using:
 
 ```sh
 bin/tot show
@@ -125,7 +142,6 @@ Which should display something like the following:
 2019-32-17 23:32:49 5bc875fa         $ /usr/bin/python examples/script1.py
   pid=5507, parent=aab37012
   read: /vagrant/examples/script1.py (ecb8231a)
-  read: /vagrant/examples/script1.py (ecb8231a)
   read: /vagrant/examples/file1.txt (9736774f)
   write: /vagrant/examples/file2.txt (5e3adc81)
 
@@ -143,13 +159,17 @@ Which should display something like the following:
 ```
 
 Each process execution is listed with its start time, process id (pid), and parent pid.
-Nested underneath each process header are a series of `read` and `write` lines. These
-lines describe each file the process read and wrote to along with a sha1 of the file.
-Using the sha1s, tot can determine how the output of one program turns into the
-input of another.
+We see several versions of python being executed which shows the details of how 
+the right python interpreter is located at runtime.
 
-To see this, let's execute another program that reads `file2.txt`, removes all the "e"s and writes
-the output to `file3.txt`.
+Nested underneath each process header are a series of `read` and `write` lines. These
+lines describe each file the process read and wrote along with their sha1 hashes.
+Notice how python needs to read the script itself `script1.py` before
+execution.
+
+Using the hashes, tot can determine how the output of one program turns into the
+input of another. To see this, let's execute another program that reads `file2.txt`, 
+removes all the "e"s and writes the output to `file3.txt`.
 
 ```sh
 bin/tot log bash -c 'sed s/e// examples/file2.txt > examples/file3.txt'
